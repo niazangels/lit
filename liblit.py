@@ -205,6 +205,20 @@ class GitObject(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
 
+class GitBlob(GitObject):
+    """
+        Blobs are user content: every file is stored as a blob.
+    """
+
+    format = b"blob"
+
+    def serialize(self):
+        return self.data
+
+    def deserialize(self, data):
+        self.data = data
+
+
 def read_object(repo, sha):
     """
         Read the object with the given hash in the repo and return it's GitObject.
