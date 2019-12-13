@@ -43,7 +43,7 @@ def main(argv=sys.argv[1:]):
         # "tag": cmd_tag,
     }
     if args.command in legal_commands:
-        fn = legal_commands[args.command]
+        fn = legal_commands.get(args.command, cmd_not_found)
         fn(args)
 
 
@@ -170,7 +170,7 @@ def repo_find(path=".", required=True):
         # >>> Path("/") / ".."
         # Path("/")
         if required:
-            raise Exception("Could not find a git repository")
+            raise Exception("🤷‍♂️ Could not find a git repository")
         return None
     return repo_find(parent, required)
 
@@ -198,3 +198,7 @@ class GitObject(metaclass=abc.ABCMeta):
 
 def cmd_init(args):
     repo_create(args.path)
+
+
+def cmd_not_found(args):
+    print("🤷‍♂️ No such command!")
