@@ -156,5 +156,23 @@ def repo_create(path):
     return repo
 
 
+def repo_find(path=".", required=True):
+    path = Path(path).resolve()
+
+    if (path / ".git").is_dir():
+        return GitRepository(path)
+
+    parent = path / ".."
+
+    if parent == path:
+        # We're at the root level now
+        # >>> Path("/") / ".."
+        # Path("/")
+        if required:
+            raise Exception("Could not find a git repository")
+        return None
+    return repo_find(parent, required)
+
+
 def cmd_init(args):
     repo_create(args.path)
