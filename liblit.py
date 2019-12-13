@@ -6,30 +6,40 @@ import os
 import re
 import sys
 import zlib
+from pathlib import Path
 
 # You don't just call `lit`. You call `lit <command>`
 argparse = argparse.ArgumentParser(description="Content tracker")
 argsubparsers = argparse.add_subparsers(title="Commands", dest="command")
 argsubparsers.required = True
 
+argsp = argsubparsers.add_parser("init", help="Initialize a new repository")
+argsp.add_argument(
+    "path",
+    metavar="directory",
+    nargs="?",
+    default=Path("."),
+    help="Where to create the repository",
+)
+
 
 def main(argv=sys.argv[1:]):
     args = argparse.parse_args(argv)
     legal_commands = {
-        "add": cmd_add,
-        "cat-file": cmd_cat_file,
-        "checkout": cmd_checkout,
-        "commit": cmd_commit,
-        "hash-object": cmd_hash_object,
         "init": cmd_init,
-        "log": cmd_log,
-        "ls-tree": cmd_ls_tree,
-        "merge": cmd_merge,
-        "rebase": cmd_rebase,
-        "rev-parse": cmd_rev_parse,
-        "rm": cmd_rm,
-        "show-ref": cmd_show_ref,
-        "tag": cmd_tag,
+        # "add": cmd_add,
+        # "cat-file": cmd_cat_file,
+        # "checkout": cmd_checkout,
+        # "commit": cmd_commit,
+        # "hash-object": cmd_hash_object,
+        # "log": cmd_log,
+        # "ls-tree": cmd_ls_tree,
+        # "merge": cmd_merge,
+        # "rebase": cmd_rebase,
+        # "rev-parse": cmd_rev_parse,
+        # "rm": cmd_rm,
+        # "show-ref": cmd_show_ref,
+        # "tag": cmd_tag,
     }
     if args.command in legal_commands:
         fn = legal_commands[args.command]
@@ -72,3 +82,79 @@ def repo_path(repo, *path):
     """
     return Path.joinpath(repo.gitdir, *path)
 
+
+def repo_dir(repo, *path, mkdir=False):
+    """
+        Same as repo_path, but makes dir if it doesn't exist
+        Returns the path of the dir if it exists or was created
+        Else returns None 
+    """
+    path = repo_path(repo, *path)
+
+    if path.exists():
+        if not path.is_dir():
+            raise Exception(f"{path} is not a directory")
+        return path
+
+    if mkdir:
+        Path.mkdir(path, parents=True)
+        return path
+
+
+def repo_file(repo, *path, mkdir=False):
+    """
+        Performs a repo_create upto the parent folder for a file
+        Returns repo_path for the path given file
+    """
+    if repo_dir(repo, *path[:-1], mkdir=mkdir):
+        return repo_path(repo, *path)
+
+
+def repo_create(path):
+    """
+        Create a new repository
+    """
+
+    def repo_default_config():
+        conf = configparser.ConfigParser()
+
+        conf.add_section("core")
+        conf.set("core", "repositoryformatversion", "0")
+        conf.set("core", "filemode", "false")
+        conf.set("core", "bare", "false")
+        return conf
+
+    repo = GitRepository(path, force=True)
+    if repo.worktree.exists():
+        if not repo.worktree.is_dir():
+            raise Exception(f"{repo.worktree} is not a directory")
+        if any((_ for _ in Path.iterdir(repo.worktree))):
+            raise Exception(f"{repo.worktree} is not empty")
+    else:
+        Path.mkdir(repo.worktree, parents=True)
+
+    assert repo_dir(repo, "branches", mkdir=True)
+    assert repo_dir(repo, "objects", mkdir=True)
+    assert repo_dir(repo, "refs", "tags", mkdir=True)
+    assert repo_dir(repo, "refs", "heads", mkdir=True)
+
+    # .git/description
+    file_desc = repo_file(repo, "description")
+    with open(file_desc, "w") as f:
+        f.write("This is an unnamed repository. Edit this file to name it.")
+
+    # .git/HEAD
+    file_head = repo_file(repo, "HEAD")
+    with open(file_head, "w") as f:
+        f.write("ref: refs/heads/master\n")
+
+    # .git/config
+    file_config = repo_file(repo, "config")
+    with open(file_config, "w") as f:
+        config = repo_default_config()
+        config.write(f)
+    return repo
+
+
+def cmd_init(args):
+    repo_create(args.path)
