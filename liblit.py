@@ -3,6 +3,7 @@ import collections
 import configparser
 import hashlib
 import os
+import abc
 import re
 import sys
 import zlib
@@ -172,6 +173,27 @@ def repo_find(path=".", required=True):
             raise Exception("Could not find a git repository")
         return None
     return repo_find(parent, required)
+
+
+class GitObject(metaclass=abc.ABCMeta):
+    repo = None  # @niazangels: But why?
+
+    def __init__(self, repo, data=None):
+        self.repo = repo
+        if data != None:
+            self.deserialize(data)
+
+    @abc.abstractmethod
+    def serialize(self):
+        """
+            Read object's contents from self.data and convert it to 
+            a meaningful representation
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def deserialize(self, data):
+        raise NotImplementedError()
 
 
 def cmd_init(args):
