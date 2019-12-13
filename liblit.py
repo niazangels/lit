@@ -92,8 +92,8 @@ def repo_dir(repo, *path, mkdir=False):
     """
     path = repo_path(repo, *path)
 
-    if path.exists():
-        if not path.is_dir():
+    if Path.exists(path):
+        if not Path.is_dir(path):
             raise Exception(f"{path} is not a directory")
         return path
 
