@@ -94,7 +94,7 @@ def repo_dir(repo, *path, mkdir=False):
 
     if Path.exists(path):
         if not Path.is_dir(path):
-            raise Exception(f"{path} is not a directory")
+            raise NotADirectoryError(f"{path} is not a directory")
         return path
 
     if mkdir:
@@ -194,6 +194,43 @@ class GitObject(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def deserialize(self, data):
         raise NotImplementedError()
+
+
+def read_object(repo, sha):
+    """
+        Read the object with the given hash in the repo and return it's GitObject.
+    """
+    directory, file = sha[:2], sha[2:]
+    path = repo_file(repo, "objects", directory, file)
+    with open(path, "rb") as f:
+        raw = zlib.decompress(f.read())
+
+        format_end_pos = raw.find(" ")
+        object_format: bytes = raw[:format_end_pos]
+
+        filesize_end_pos = raw.find(b"\x00", start=format_end_pos)
+        file_content_start_pos = filesize_end_pos + 1
+
+        expected_filesize = int(raw[format_end_pos:filesize_end_pos].decode("ascii"))
+        actual_filesize = len(raw) - file_content_start_pos
+
+        if expected_filesize != actual_filesize:
+            raise AssertionError(
+                f"🥴 Malformed object {directory}/{file}- Expected {expected_filesize} bytes, got {actual_filesize}"
+            )
+
+        constructors = {
+            b"commit": GitCommit,
+            b"tree": GitTree,
+            b"tag": GitTag,
+            b"blob": GitBlob,
+        }
+
+        constructor = constructors.get(object_format, None)
+        if constructor is None:
+            raise NotImplementedError(f"👻 Unknown object format: {object_format}")
+        file_content = raw[file_content_start_pos:]
+        return constructor[repo, file_content]
 
 
 def cmd_init(args):
