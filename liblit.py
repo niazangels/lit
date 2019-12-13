@@ -8,7 +8,7 @@ import re
 import sys
 import zlib
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 
 # You don't just call `lit`. You call `lit <command>`
 argparser = argparse.ArgumentParser(description="Content tracker")
@@ -24,13 +24,27 @@ argsp.add_argument(
     help="Where to create the repository",
 )
 
+argsp = argsubparsers.add_parser(
+    "cat-file", help="Return content of repository objects"
+)
+argsp.add_argument(
+    "type",
+    metavar="type",
+    choices=["blob", "commit", "tag", "tree"],
+    help="Specify the type",
+)
+
+argsp.add_argument(
+    "object", metavar="object", help="Specify the object",
+)
+
 
 def main(argv=sys.argv[1:]):
     args = argparse.parse_args(argv)
     legal_commands = {
         "init": cmd_init,
         # "add": cmd_add,
-        # "cat-file": cmd_cat_file,
+        "cat-file": cmd_cat_file,
         # "checkout": cmd_checkout,
         # "commit": cmd_commit,
         # "hash-object": cmd_hash_object,
@@ -185,7 +199,7 @@ def repo_find(path=".", required=True):
 
 class GitObject(metaclass=abc.ABCMeta):
     repo = None  # @niazangels: But why?
-    format = None
+    format: Union[None, bytes] = None
 
     def __init__(self, repo, data=None):
         self.repo = repo
@@ -219,7 +233,7 @@ class GitBlob(GitObject):
         self.data = data
 
 
-def read_object(repo, sha):
+def object_read(repo, sha):
     """
         Read the object with the given hash in the repo and return it's GitObject.
     """
@@ -258,7 +272,7 @@ def read_object(repo, sha):
         return constructor[repo, file_content]
 
 
-def object_find(repo: GitRepository, name, fmt=None, follow: bool = True):
+def object_find(repo: GitRepository, name, format=None, follow: bool = True):
     """
         Placeholder
         Git has a lot of ways to refer to objects: full hash, short hash, tags… 
@@ -267,9 +281,9 @@ def object_find(repo: GitRepository, name, fmt=None, follow: bool = True):
     return name
 
 
-def object_write(objekt: GitObject, write_file: bool = True):
-    data = object.serialize()
-    result = objekt.format + b" " + str(len(data)).encode() + b"\x00" + data
+def object_write(objekt: Union[GitBlob], write_file: bool = True):
+    data = objekt.serialize()
+    result = objekt.format + b" " + str(len(data)).encode("utf-8") + b"\x00" + data
     sha = hashlib.sha1(result).hexdigest()
 
     if write_file:
@@ -282,6 +296,16 @@ def object_write(objekt: GitObject, write_file: bool = True):
 
 def cmd_init(args):
     repo_create(args.path)
+
+
+def cat_file(repo: GitRepository, objekt: GitBlob, format=None):
+    objekt = object_read(repo, object_find(repo, objekt, format=format))
+    sys.stdout.buffer.write(objekt.serialize())
+
+
+def cmd_cat_file(args):
+    repo = repo_find()
+    cat_file(repo, args.object, format=args.type.encode("utf-8"))
 
 
 def cmd_not_found(args: list) -> None:
