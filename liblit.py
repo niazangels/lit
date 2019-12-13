@@ -8,10 +8,11 @@ import re
 import sys
 import zlib
 from pathlib import Path
+from typing import Tuple
 
 # You don't just call `lit`. You call `lit <command>`
-argparse = argparse.ArgumentParser(description="Content tracker")
-argsubparsers = argparse.add_subparsers(title="Commands", dest="command")
+argparser = argparse.ArgumentParser(description="Content tracker")
+argsubparsers = argparser.add_subparsers(title="Commands", dest="command")
 argsubparsers.required = True
 
 argsp = argsubparsers.add_parser("init", help="Initialize a new repository")
@@ -45,6 +46,13 @@ def main(argv=sys.argv[1:]):
     if args.command in legal_commands:
         fn = legal_commands.get(args.command, cmd_not_found)
         fn(args)
+
+
+def object_path(hash: str) -> Tuple[str, str]:
+    """
+        Returns (folder, file) referencing the file in .git/objects 
+    """
+    return hash[:2], hash[2:]
 
 
 class GitRepository:
@@ -177,6 +185,7 @@ def repo_find(path=".", required=True):
 
 class GitObject(metaclass=abc.ABCMeta):
     repo = None  # @niazangels: But why?
+    format = None
 
     def __init__(self, repo, data=None):
         self.repo = repo
@@ -228,14 +237,38 @@ def read_object(repo, sha):
 
         constructor = constructors.get(object_format, None)
         if constructor is None:
-            raise NotImplementedError(f"👻 Unknown object format: {object_format}")
+            raise NotImplementedError(
+                f"👻 Unknown object format: {object_format.decode('utf-8')}"
+            )
         file_content = raw[file_content_start_pos:]
         return constructor[repo, file_content]
+
+
+def object_find(repo: GitRepository, name, fmt=None, follow: bool = True):
+    """
+        Placeholder
+        Git has a lot of ways to refer to objects: full hash, short hash, tags… 
+        object_find() will be our name resolution function
+    """
+    return name
+
+
+def object_write(objekt: GitObject, write_file: bool = True):
+    data = object.serialize()
+    result = objekt.format + b" " + str(len(data)).encode() + b"\x00" + data
+    sha = hashlib.sha1(result).hexdigest()
+
+    if write_file:
+        path = repo_file(objekt.repo, *object_path(sha), mkdir=True)
+        with open(path, "wb") as f:
+            f.write(zlib.compress(result))
+
+    return sha
 
 
 def cmd_init(args):
     repo_create(args.path)
 
 
-def cmd_not_found(args):
+def cmd_not_found(args: list) -> None:
     print("🤷‍♂️ No such command!")
